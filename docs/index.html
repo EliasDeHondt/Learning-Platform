@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>EliasDH Learning Platform</title>
+        <meta charset="utf-8">
+        <meta name="robots" content="index, follow">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="description" content="Welcome to The EliasDH Learning Platform!">
+        <meta name="author" content="Elias De Hondt">
+        <meta property="og:title" content="EliasDH Learning Platform">
+        <meta property="og:description" content="Welcome to The EliasDH Learning Platform!">
+        <meta property="og:type" content="website">
+        <meta property="og:site_name" content="EliasDH Learning Platform">
+        <meta property="og:image" content="https://eliasdh.com/assets/media/images/logo.png">
+        <meta name="theme-color" content="#4f94f0">
+        <link rel="manifest" href="/manifest.json">
+        <link rel="apple-touch-icon" href="https://eliasdh.com/assets/images/icon-192x192.png">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="EliasDH Learning Platform">
+        <meta name="twitter:description" content="Welcome to The EliasDH Learning Platform!">
+        <meta name="twitter:image" content="https://eliasdh.com/assets/media/images/logo.png">
+        <link rel="icon" href="https://eliasdh.com/assets/media/icons/favicon.ico">
+        <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+        <style>
+            :root {
+                --text: #0c0e11;
+                --background: #f6f7f9;
+                --primary: #4f94f0;
+                --secondary: #6c757d;
+                --accent: #829ec2;
+            }
+
+            body {
+                font-family: 'Roboto', sans-serif;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+                background-color: var(--background);
+                color: var(--text);
+            }
+
+            .container {
+                text-align: center;
+                background: white;
+                padding: 20px;
+                border-radius: 10px;
+                box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            }
+
+            select, input {
+                padding: 10px;
+                font-size: 16px;
+                margin: 10px;
+                border: 1px solid var(--secondary);
+                border-radius: 5px;
+            }
+
+            button {
+                padding: 10px 20px;
+                font-size: 16px;
+                cursor: pointer;
+                background-color: var(--primary);
+                color: white;
+                border: none;
+                border-radius: 5px;
+            }
+
+            button:hover {
+                background-color: var(--accent);
+            }
+
+            #feedback {
+                margin-top: 10px;
+                font-size: 18px;
+            }
+
+            #start-screen {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+
+            #quiz-screen {
+                display: none;
+            }
+
+            #movement-screen {
+                display: none;
+            }
+
+            #movement-task {
+                font-size: 20px;
+                margin: 20px 0;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div id="start-screen">
+                <h1>The EliasDH Learning Platform</h1>
+                <select id="language">
+                    <option value="en">English</option>
+                    <option value="nl">Nederlands</option>
+                </select>
+                <button id="start-button">GO</button>
+            </div>
+            <div id="quiz-screen">
+                <h1 id="quiz-title">Reken Quiz</h1>
+                <p id="question">1 + 1 = ?</p>
+                <input type="number" id="answer" placeholder="Vul je antwoord in">
+                <button id="check-button" onclick="checkAnswer()">Controleer</button>
+                <p id="feedback"></p>
+            </div>
+            <div id="movement-screen">
+                <h1>Bewegingsopdracht</h1>
+                <p id="movement-task"></p>
+                <button id="continue-button" onclick="continueQuiz()">Ik heb het gedaan!</button>
+            </div>
+        </div>
+
+        <script>
+            let correctAnswer;
+            let utterance;
+            let selectedLanguage = 'en';
+
+            const translations = {
+                nl: {
+                    welcome: "Welkom bij The EliasDH Learning Platform, aangedreven door de Text-to-Speech API van EliasDH's AI Icarus! Kies een taal en druk op GO om te beginnen.",
+                    title: "Reken Quiz",
+                    check: "Controleer",
+                    placeholder: "Vul je antwoord in",
+                    correct: "Goed gedaan!",
+                    incorrect: "Fout, probeer opnieuw!",
+                    movementTitle: "Bewegingsopdracht",
+                    continue: "Ik heb het gedaan!"
+                },
+                en: {
+                    welcome: "Welcome to The EliasDH Learning Platform, powered by the Text-to-Speech API of EliasDH's AI Icarus! Choose a language and press GO to start.",
+                    title: "Math Quiz",
+                    check: "Check",
+                    placeholder: "Enter your answer",
+                    correct: "Well done!",
+                    incorrect: "Wrong, try again!",
+                    movementTitle: "Movement Task",
+                    continue: "I did it!"
+                }
+            };
+
+            const movementTasks = {
+                nl: [
+                    "Doe 5 jumping jacks.",
+                    "Huppel 3 keer op je plaats.",
+                    "Raak je tenen aan en strek je armen omhoog.",
+                    "Draai 2 rondjes in de lucht.",
+                    "Spring 4 keer zo hoog als je kan."
+                ],
+                en: [
+                    "Do 5 jumping jacks.",
+                    "Hop 3 times in place.",
+                    "Touch your toes and stretch your arms up.",
+                    "Spin around twice.",
+                    "Jump 4 times as high as you can."
+                ]
+            };
+
+            window.onload = () => {
+                const welcomeText = translations.nl.welcome;
+                utterance = new SpeechSynthesisUtterance(welcomeText);
+                utterance.lang = 'nl-NL';
+                speechSynthesis.speak(utterance);
+            };
+
+            document.getElementById('language').addEventListener('change', (e) => {
+                selectedLanguage = e.target.value;
+                if (utterance) {
+                    speechSynthesis.cancel();
+                }
+                const welcomeText = translations[selectedLanguage].welcome;
+                utterance = new SpeechSynthesisUtterance(welcomeText);
+                utterance.lang = getLanguageCode(selectedLanguage);
+                speechSynthesis.speak(utterance);
+            });
+
+            document.getElementById('start-button').addEventListener('click', () => {
+                document.getElementById('start-screen').style.display = 'none';
+                document.getElementById('quiz-screen').style.display = 'block';
+                document.getElementById('quiz-title').textContent = translations[selectedLanguage].title;
+                document.getElementById('check-button').textContent = translations[selectedLanguage].check;
+                document.getElementById('answer').placeholder = translations[selectedLanguage].placeholder;
+                generateQuestion();
+            });
+
+            function getLanguageCode(lang) {
+                switch (lang) {
+                    case 'nl': return 'nl-NL';
+                    case 'en': return 'en-US';
+                    default: return 'nl-NL';
+                }
+            }
+
+            function generateQuestion() {
+                const num1 = Math.floor(Math.random() * 10) + 1;
+                const num2 = Math.floor(Math.random() * 10) + 1;
+                correctAnswer = num1 + num2;
+                const questionText = `${num1} + ${num2} = ?`;
+                document.getElementById('question').textContent = questionText;
+                speakQuestion(questionText);
+            }
+
+            function speakQuestion(text) {
+                if (utterance) {
+                    speechSynthesis.cancel();
+                }
+                utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = getLanguageCode(selectedLanguage);
+                speechSynthesis.speak(utterance);
+            }
+
+            function checkAnswer() {
+                const userAnswer = parseInt(document.getElementById('answer').value);
+                const feedback = document.getElementById('feedback');
+                if (userAnswer === correctAnswer) {
+                    feedback.textContent = translations[selectedLanguage].correct;
+                    feedback.style.color = 'green';
+                    setTimeout(() => {
+                        feedback.textContent = '';
+                        showMovementTask();
+                    }, 1500);
+                } else {
+                    feedback.textContent = translations[selectedLanguage].incorrect;
+                    feedback.style.color = 'red';
+                }
+            }
+
+            function showMovementTask() {
+                document.getElementById('quiz-screen').style.display = 'none';
+                document.getElementById('movement-screen').style.display = 'block';
+                const tasks = movementTasks[selectedLanguage];
+                const task = tasks[Math.floor(Math.random() * tasks.length)];
+                document.getElementById('movement-task').textContent = task;
+                document.getElementById('continue-button').textContent = translations[selectedLanguage].continue;
+                if (utterance) {
+                    speechSynthesis.cancel();
+                }
+                utterance = new SpeechSynthesisUtterance(task);
+                utterance.lang = getLanguageCode(selectedLanguage);
+                speechSynthesis.speak(utterance);
+            }
+
+            function continueQuiz() {
+                document.getElementById('movement-screen').style.display = 'none';
+                document.getElementById('quiz-screen').style.display = 'block';
+                document.getElementById('answer').value = '';
+                generateQuestion();
+            }
+
+            document.getElementById('answer').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    checkAnswer();
+                }
+            });
+        </script>
+    </body>
+</html>
