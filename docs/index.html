@@ -6,7 +6,7 @@
         <meta name="robots" content="index, follow">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta name="description" content="Welcome to The EliasDH Learning Platform!">
-        <meta name="author" content="Elias De Hondt">
+        <meta name="author" content="EliasDeHondt">
         <meta property="og:title" content="EliasDH Learning Platform">
         <meta property="og:description" content="Welcome to The EliasDH Learning Platform!">
         <meta property="og:type" content="website">
@@ -101,22 +101,22 @@
             <div id="start-screen">
                 <h1>The EliasDH Learning Platform</h1>
                 <select id="language">
-                    <option value="en">English</option>
+                    <option value="en" selected>English</option>
                     <option value="nl">Nederlands</option>
                 </select>
                 <button id="start-button">GO</button>
             </div>
             <div id="quiz-screen">
-                <h1 id="quiz-title">Reken Quiz</h1>
+                <h1 id="quiz-title">Math Quiz</h1>
                 <p id="question">1 + 1 = ?</p>
-                <input type="number" id="answer" placeholder="Vul je antwoord in">
-                <button id="check-button" onclick="checkAnswer()">Controleer</button>
+                <input type="number" id="answer" placeholder="Enter your answer">
+                <button id="check-button" onclick="checkAnswer()">Check</button>
                 <p id="feedback"></p>
             </div>
             <div id="movement-screen">
-                <h1>Bewegingsopdracht</h1>
+                <h1>Movement Task</h1>
                 <p id="movement-task"></p>
-                <button id="continue-button" onclick="continueQuiz()">Ik heb het gedaan!</button>
+                <button id="continue-button" onclick="continueQuiz()">I did it!</button>
             </div>
         </div>
 
@@ -124,6 +124,7 @@
             let correctAnswer;
             let utterance;
             let selectedLanguage = 'en';
+            let timeoutId;
 
             const translations = {
                 nl: {
@@ -134,7 +135,8 @@
                     correct: "Goed gedaan!",
                     incorrect: "Fout, probeer opnieuw!",
                     movementTitle: "Bewegingsopdracht",
-                    continue: "Ik heb het gedaan!"
+                    continue: "Ik heb het gedaan!",
+                    timeout: "Je hebt te lang gewacht, probeer opnieuw!"
                 },
                 en: {
                     welcome: "Welcome to The EliasDH Learning Platform, powered by the Text-to-Speech API of EliasDH's AI, Icarus! Choose a language and press GO to start.",
@@ -144,7 +146,8 @@
                     correct: "Well done!",
                     incorrect: "Wrong, try again!",
                     movementTitle: "Movement Task",
-                    continue: "I did it!"
+                    continue: "I did it!",
+                    timeout: "You took too long, try again!"
                 }
             };
 
@@ -166,9 +169,9 @@
             };
 
             window.onload = () => {
-                const welcomeText = translations.nl.welcome;
+                const welcomeText = translations.en.welcome;
                 utterance = new SpeechSynthesisUtterance(welcomeText);
-                utterance.lang = 'nl-NL';
+                utterance.lang = 'en-US';
                 speechSynthesis.speak(utterance);
             };
 
@@ -190,13 +193,14 @@
                 document.getElementById('check-button').textContent = translations[selectedLanguage].check;
                 document.getElementById('answer').placeholder = translations[selectedLanguage].placeholder;
                 generateQuestion();
+                startTimeout();
             });
 
             function getLanguageCode(lang) {
                 switch (lang) {
                     case 'nl': return 'nl-NL';
                     case 'en': return 'en-US';
-                    default: return 'nl-NL';
+                    default: return 'en-US';
                 }
             }
 
@@ -218,12 +222,36 @@
                 speechSynthesis.speak(utterance);
             }
 
+            function speakFeedback(text) {
+                if (utterance) {
+                    speechSynthesis.cancel();
+                }
+                utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = getLanguageCode(selectedLanguage);
+                speechSynthesis.speak(utterance);
+            }
+
+            function startTimeout() {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => {
+                    const feedback = document.getElementById('feedback');
+                    feedback.textContent = translations[selectedLanguage].timeout;
+                    feedback.style.color = 'orange';
+                    speakFeedback(translations[selectedLanguage].timeout);
+                    document.getElementById('answer').value = '';
+                    generateQuestion();
+                    startTimeout();
+                }, 30000); // 30 seconds
+            }
+
             function checkAnswer() {
+                clearTimeout(timeoutId);
                 const userAnswer = parseInt(document.getElementById('answer').value);
                 const feedback = document.getElementById('feedback');
                 if (userAnswer === correctAnswer) {
                     feedback.textContent = translations[selectedLanguage].correct;
                     feedback.style.color = 'green';
+                    speakFeedback(translations[selectedLanguage].correct);
                     setTimeout(() => {
                         feedback.textContent = '';
                         showMovementTask();
@@ -231,6 +259,8 @@
                 } else {
                     feedback.textContent = translations[selectedLanguage].incorrect;
                     feedback.style.color = 'red';
+                    speakFeedback(translations[selectedLanguage].incorrect);
+                    startTimeout();
                 }
             }
 
@@ -254,12 +284,17 @@
                 document.getElementById('quiz-screen').style.display = 'block';
                 document.getElementById('answer').value = '';
                 generateQuestion();
+                startTimeout();
             }
 
             document.getElementById('answer').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     checkAnswer();
                 }
+            });
+
+            document.getElementById('answer').addEventListener('input', () => {
+                startTimeout();
             });
         </script>
     </body>
