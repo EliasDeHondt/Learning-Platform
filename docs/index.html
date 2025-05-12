@@ -21,6 +21,10 @@
         <meta name="twitter:image" content="https://eliasdh.com/assets/media/images/logo.png">
         <link rel="icon" href="https://eliasdh.com/assets/media/icons/favicon.ico">
         <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+        <!-- MediaPipe Hands and Utilities -->
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js"></script>
         <style>
             :root {
                 --text: #0c0e11;
@@ -65,6 +69,7 @@
                 color: white;
                 border: none;
                 border-radius: 5px;
+                margin: 5px;
             }
 
             button:hover {
@@ -98,6 +103,15 @@
                 font-size: 20px;
                 margin: 20px 0;
             }
+
+            #video-canvas {
+                width: 480px;
+                height: 360px;
+                margin: 10px auto;
+                display: none;
+                border: 1px solid var(--secondary);
+                border-radius: 5px;
+            }
         </style>
     </head>
     <body>
@@ -114,6 +128,8 @@
                 <h1 id="quiz-title">Math Quiz</h1>
                 <p id="question">1 + 1 = ?</p>
                 <input type="number" id="answer" placeholder="Enter your answer">
+                <canvas id="video-canvas"></canvas>
+                <button id="camera-button">Use Camera</button>
                 <button id="check-button" onclick="checkAnswer()">Check</button>
                 <p id="feedback"></p>
             </div>
@@ -129,6 +145,9 @@
             let utterance;
             let selectedLanguage = 'en';
             let timeoutId;
+            let cameraActive = false;
+            let fingerCount = 0;
+            let camera;
 
             const translations = {
                 nl: {
@@ -140,7 +159,9 @@
                     incorrect: "Fout, probeer opnieuw!",
                     movementTitle: "Bewegingsopdracht",
                     continue: "Ik heb het gedaan!",
-                    timeout: "Je hebt te lang gewacht, probeer opnieuw!"
+                    timeout: "Je hebt te lang gewacht, probeer opnieuw!",
+                    cameraOn: "Gebruik Camera",
+                    cameraOff: "Camera Uit"
                 },
                 en: {
                     welcome: "Welcome to The EliasDH Learning Platform, powered by the Text-to-Speech API of EliasDH's AI, Icarus! Choose a language and press GO to start.",
@@ -151,7 +172,9 @@
                     incorrect: "Wrong, try again!",
                     movementTitle: "Movement Task",
                     continue: "I did it!",
-                    timeout: "You took too long, try again!"
+                    timeout: "You took too long, try again!",
+                    cameraOn: "Use Camera",
+                    cameraOff: "Turn Off Camera"
                 }
             };
 
@@ -171,6 +194,112 @@
                     "Jump 4 times as high as you can."
                 ]
             };
+
+            // MediaPipe Hands Setup
+            const hands = new Hands({locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`;
+            }});
+            hands.setOptions({
+                maxNumHands: 2, // Allow detection of both hands
+                modelComplexity: 1,
+                minDetectionConfidence: 0.7,
+                minTrackingConfidence: 0.7
+            });
+            hands.onResults(onResults);
+
+            const canvas = document.getElementById('video-canvas');
+            const ctx = canvas.getContext('2d');
+
+            function onResults(results) {
+                ctx.save();
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                if (results.image) {
+                    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+                }
+                fingerCount = 0;
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    // Use the first detected hand for simplicity
+                    const landmarks = results.multiHandLandmarks[0];
+                    drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+                    drawLandmarks(ctx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 3});
+                    fingerCount = countFingers(landmarks);
+                    console.log(`Detected fingers: ${fingerCount}, Hand: ${results.multiHandedness[0].label}`);
+                }
+                ctx.font = '24px Roboto';
+                ctx.fillStyle = '#000000';
+                ctx.fillText(`Fingers: ${fingerCount}`, 10, 40);
+                ctx.restore();
+            }
+
+            function countFingers(landmarks) {
+                let count = 0;
+                // Finger indices: 4 (thumb tip), 8 (index tip), 12 (middle tip), 16 (ring tip), 20 (pinky tip)
+                // Reference joints: 3 (thumb IP), 6 (index PIP), 10 (middle PIP), 14 (ring PIP), 18 (pinky PIP)
+                const fingerTips = [4, 8, 12, 16, 20];
+                const referenceJoints = [3, 6, 10, 14, 18];
+                for (let i = 0; i < fingerTips.length; i++) {
+                    const tip = landmarks[fingerTips[i]];
+                    const ref = landmarks[referenceJoints[i]];
+                    if (i === 0) { // Thumb (special case)
+                        // Thumb is often horizontal, check x-coordinate difference
+                        const tipX = tip.x * canvas.width;
+                        const refX = ref.x * canvas.width;
+                        // For right hand, thumb tip x > ref x; for left hand, tip x < ref x
+                        // Use handedness or assume either direction is valid
+                        const xDiff = Math.abs(tipX - refX);
+                        if (xDiff > 30) { // Threshold for thumb extension
+                            count++;
+                        }
+                    } else { // Other fingers
+                        const tipY = tip.y * canvas.height;
+                        const refY = ref.y * canvas.height;
+                        if (tipY < refY - 20) {
+                            count++;
+                        }
+                    }
+                }
+                return count;
+            }
+
+            async function startCamera() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: 480, height: 360 }
+                    });
+                    const video = document.createElement('video');
+                    video.srcObject = stream;
+                    video.play();
+                    camera = new Camera(video, {
+                        onFrame: async () => {
+                            await hands.send({image: video});
+                        },
+                        width: 480,
+                        height: 360
+                    });
+                    camera.start();
+                    document.getElementById('video-canvas').style.display = 'block';
+                    cameraActive = true;
+                    document.getElementById('camera-button').textContent = translations[selectedLanguage].cameraOff;
+                } catch (err) {
+                    console.error("Camera access denied or unavailable:", err);
+                    speakFeedback(selectedLanguage === 'nl' ? "Camera toegang geweigerd of niet beschikbaar." : "Camera access denied or unavailable.");
+                }
+            }
+
+            function stopCamera() {
+                if (camera) {
+                    camera.stop();
+                    const video = camera.video;
+                    const stream = video.srcObject;
+                    if (stream) {
+                        stream.getTracks().forEach(track => track.stop());
+                    }
+                    camera = null;
+                    cameraActive = false;
+                    document.getElementById('video-canvas').style.display = 'none';
+                    document.getElementById('camera-button').textContent = translations[selectedLanguage].cameraOn;
+                }
+            }
 
             window.onload = () => {
                 const welcomeText = translations.en.welcome;
@@ -196,8 +325,17 @@
                 document.getElementById('quiz-title').textContent = translations[selectedLanguage].title;
                 document.getElementById('check-button').textContent = translations[selectedLanguage].check;
                 document.getElementById('answer').placeholder = translations[selectedLanguage].placeholder;
+                document.getElementById('camera-button').textContent = translations[selectedLanguage].cameraOn;
                 generateQuestion();
                 startTimeout();
+            });
+
+            document.getElementById('camera-button').addEventListener('click', () => {
+                if (cameraActive) {
+                    stopCamera();
+                } else {
+                    startCamera();
+                }
             });
 
             function getLanguageCode(lang) {
@@ -209,12 +347,21 @@
             }
 
             function generateQuestion() {
-                const num1 = Math.floor(Math.random() * 10) + 1;
-                const num2 = Math.floor(Math.random() * 10) + 1;
+                const maxSum = 4;
+                const num1 = Math.floor(Math.random() * 4);
+                const maxNum2 = maxSum - num1;
+                const num2 = Math.floor(Math.random() * (maxNum2 + 1));
                 correctAnswer = num1 + num2;
-                const questionText = `${num1} + ${num2} = ?`;
-                document.getElementById('question').textContent = questionText;
-                speakQuestion(questionText);
+                if (correctAnswer === 0) {
+                    correctAnswer = 1;
+                    const questionText = `0 + 1 = ?`;
+                    document.getElementById('question').textContent = questionText;
+                    speakQuestion(questionText);
+                } else {
+                    const questionText = `${num1} + ${num2} = ?`;
+                    document.getElementById('question').textContent = questionText;
+                    speakQuestion(questionText);
+                }
             }
 
             function speakQuestion(text) {
@@ -245,19 +392,26 @@
                     document.getElementById('answer').value = '';
                     generateQuestion();
                     startTimeout();
-                }, 30000); // 30 seconds
+                }, 30000);
             }
 
             function checkAnswer() {
                 clearTimeout(timeoutId);
-                const userAnswer = parseInt(document.getElementById('answer').value);
                 const feedback = document.getElementById('feedback');
+                let userAnswer;
+                if (cameraActive) {
+                    userAnswer = fingerCount;
+                    console.log(`Detected fingers: ${fingerCount}`);
+                } else {
+                    userAnswer = parseInt(document.getElementById('answer').value);
+                }
                 if (userAnswer === correctAnswer) {
                     feedback.textContent = translations[selectedLanguage].correct;
                     feedback.style.color = 'green';
                     speakFeedback(translations[selectedLanguage].correct);
                     setTimeout(() => {
                         feedback.textContent = '';
+                        stopCamera();
                         showMovementTask();
                     }, 1500);
                 } else {
